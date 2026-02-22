@@ -261,9 +261,26 @@
 </div>
 
 <script>
-// FRED API - free, no key required for basic access. Using JSON format.
+// FRED API via CORS proxy (FRED doesn't send CORS headers for direct browser access)
 const FRED_KEY = 'e5790ac1047a3017b1bf765a252694b0';
-const BASE = 'https://api.stlouisfed.org/fred/series/observations';
+const FRED_BASE = 'https://api.stlouisfed.org/fred/series/observations';
+const CORS_PROXIES = [
+  (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+];
+
+// Fallback data baked in (updated 2025-Q4 FRED data) — used if live fetch fails
+const FALLBACK_DATA = {
+  grossInterest: { value: 1227.495, date: "2025-10-01" },
+  interestReceipts: { value: 70.71, date: "2025-10-01" },
+  ss: { value: 1578.207, date: "2025-10-01" },
+  medicare: { value: 1078.394, date: "2025-10-01" },
+  incomeSecurity: { value: 1269.52, date: "2025-10-01" },
+  defense: { value: 1159.324, date: "2025-10-01" },
+  revenue: { value: 5769.672, date: "2025-07-01" },
+  gdp: { value: 31490.07, date: "2025-10-01" },
+  debt: { value: 37637553.0, date: "2025-07-01" },
+};
 
 const SERIES = {
   grossInterest: 'A091RC1Q027SBEA',
@@ -278,16 +295,32 @@ const SERIES = {
 };
 
 async function fetchSeries(id) {
-  const url = `${BASE}?series_id=${id}&api_key=${FRED_KEY}&file_type=json&sort_order=desc&limit=4`;
+  const fredUrl = `${FRED_BASE}?series_id=${id}&api_key=${FRED_KEY}&file_type=json&sort_order=desc&limit=4`;
+  
+  for (const makeProxy of CORS_PROXIES) {
+    try {
+      const url = makeProxy(fredUrl);
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const obs = data.observations?.find(o => o.value !== '.');
+      if (obs) return { value: parseFloat(obs.value), date: obs.date };
+    } catch(e) {
+      console.warn(`Proxy failed for ${id}:`, e.message);
+    }
+  }
+  
+  // Direct attempt (works if FRED ever adds CORS)
   try {
-    const res = await fetch(url);
+    const res = await fetch(fredUrl, { signal: AbortSignal.timeout(5000) });
     const data = await res.json();
     const obs = data.observations?.find(o => o.value !== '.');
-    return obs ? { value: parseFloat(obs.value), date: obs.date } : null;
+    if (obs) return { value: parseFloat(obs.value), date: obs.date };
   } catch(e) {
-    console.error(`Failed to fetch ${id}:`, e);
-    return null;
+    console.warn(`Direct FRED failed for ${id}:`, e.message);
   }
+  
+  return null;
 }
 
 function fmt(n, decimals=0) {
@@ -299,11 +332,16 @@ function fmt(n, decimals=0) {
 async function init() {
   const app = document.getElementById('app');
   
-  // Fetch all series in parallel
+  // Fetch all series in parallel, fall back to baked-in data
   const results = {};
+  let usedFallback = false;
   const entries = Object.entries(SERIES);
   const fetches = entries.map(async ([key, id]) => {
     results[key] = await fetchSeries(id);
+    if (!results[key] && FALLBACK_DATA[key]) {
+      results[key] = FALLBACK_DATA[key];
+      usedFallback = true;
+    }
   });
   await Promise.all(fetches);
 
@@ -468,7 +506,7 @@ async function init() {
 
     <!-- Data Source -->
     <div class="data-source">
-      Data: Federal Reserve Bank of St. Louis (FRED) • BEA NIPA Tables • Updated: ${dataDate}<br>
+      Data: Federal Reserve Bank of St. Louis (FRED) • BEA NIPA Tables • Updated: ${dataDate}${usedFallback ? ' (cached — live update unavailable)' : ' (live)'}<br>
       Series: A091RC1Q027SBEA, B094RC1Q027SBEA, W823RC1Q027SBEA, W729RC1Q027SBEA, W824RC1Q027SBEA, FDEFX, FGRECPT, GDP, GFDEBTN
     </div>
 
