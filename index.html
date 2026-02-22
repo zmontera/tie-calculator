@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>True Interest Expense Calculator — Is the U.S. Fiscally Irrecoverable?</title>
+<meta name="description" content="Live calculation of the federal government's True Interest Expense — mandatory obligations as a percentage of tax revenue. Based on the Gromen FFTT framework.">
+<style>
+  :root {
+    --navy: #0a1628;
+    --navy-light: #162a4a;
+    --gold: #d4a843;
+    --gold-dim: #b8922e;
+    --red: #ef4444;
+    --orange: #f97316;
+    --green: #22c55e;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --dim: #64748b;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--navy);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+  .container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+  
+  /* Header */
+  .header { text-align: center; margin-bottom: 32px; }
+  .header h1 { font-size: 28px; color: var(--gold); margin-bottom: 8px; font-weight: 800; }
+  .header .subtitle { font-size: 14px; color: var(--muted); max-width: 600px; margin: 0 auto; }
+  .header .framework { font-size: 11px; color: var(--dim); margin-top: 8px; }
+  
+  /* Big Number */
+  .big-number-card {
+    background: linear-gradient(135deg, var(--navy-light), #1a1a2e);
+    border: 1px solid rgba(212,168,67,0.3);
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .big-number-label { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; }
+  .big-number {
+    font-size: 72px;
+    font-weight: 900;
+    margin: 8px 0;
+    transition: color 0.3s;
+  }
+  .big-number.critical { color: var(--red); }
+  .big-number.warning { color: var(--orange); }
+  .big-number.ok { color: var(--green); }
+  .big-number-context { font-size: 13px; color: var(--dim); max-width: 500px; margin: 0 auto; }
+  .big-number-context strong { color: var(--muted); }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.7; } }
+  
+  /* Component Grid */
+  .components { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
+  @media (max-width: 700px) { .components { grid-template-columns: repeat(2, 1fr); } }
+  .comp-card {
+    background: var(--navy-light);
+    border-radius: 12px;
+    padding: 16px 12px;
+    text-align: center;
+    border: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+  .comp-card:hover { border-color: rgba(212,168,67,0.4); }
+  .comp-label { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+  .comp-value { font-size: 22px; font-weight: 700; margin: 4px 0; }
+  .comp-pct { font-size: 10px; color: var(--dim); }
+  .comp-card.interest .comp-value { color: var(--red); }
+  .comp-card.interest { border-color: rgba(239,68,68,0.3); }
+  .comp-card.ss .comp-value { color: var(--orange); }
+  .comp-card.ss { border-color: rgba(249,115,22,0.3); }
+  .comp-card.medicare .comp-value { color: var(--orange); }
+  .comp-card.medicare { border-color: rgba(249,115,22,0.3); }
+  .comp-card.incsec .comp-value { color: #eab308; }
+  .comp-card.incsec { border-color: rgba(234,179,8,0.3); }
+  .comp-card.defense .comp-value { color: #3b82f6; }
+  .comp-card.defense { border-color: rgba(59,130,246,0.3); }
+  
+  /* Revenue Bar */
+  .bar-section { margin-bottom: 24px; }
+  .bar-label-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .bar-container {
+    height: 40px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    overflow: visible;
+    position: relative;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 8px;
+    background: linear-gradient(90deg, var(--red), var(--orange));
+    position: relative;
+    transition: width 0.8s ease;
+    min-width: 20px;
+  }
+  .bar-revenue-line {
+    position: absolute;
+    top: -4px; bottom: -4px;
+    width: 3px;
+    background: var(--gold);
+    border-radius: 2px;
+    z-index: 2;
+  }
+  .bar-revenue-label {
+    position: absolute;
+    top: -22px;
+    font-size: 10px;
+    color: var(--gold);
+    white-space: nowrap;
+    transform: translateX(-50%);
+  }
+  
+  /* Context Cards */
+  .context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  @media (max-width: 600px) { .context-grid { grid-template-columns: 1fr; } }
+  .ctx-card {
+    background: var(--navy-light);
+    border-radius: 12px;
+    padding: 16px;
+    border-left: 3px solid var(--dim);
+  }
+  .ctx-card.debt { border-left-color: var(--red); }
+  .ctx-card.deficit { border-left-color: var(--orange); }
+  .ctx-card.maturity { border-left-color: #eab308; }
+  .ctx-card.gdp { border-left-color: #3b82f6; }
+  .ctx-title { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+  .ctx-value { font-size: 24px; font-weight: 700; color: var(--text); margin: 4px 0; }
+  .ctx-detail { font-size: 11px; color: var(--dim); }
+  
+  /* Explanation */
+  .explainer {
+    background: var(--navy-light);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    border: 1px solid rgba(212,168,67,0.2);
+  }
+  .explainer h2 { font-size: 18px; color: var(--gold); margin-bottom: 12px; }
+  .explainer p { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .explainer ul { padding-left: 20px; margin-bottom: 12px; }
+  .explainer li { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .explainer strong { color: var(--text); }
+  
+  /* What-If Slider */
+  .whatif {
+    background: var(--navy-light);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .whatif h2 { font-size: 18px; color: var(--gold); margin-bottom: 16px; }
+  .slider-group { margin-bottom: 16px; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .slider-label .val { color: var(--gold); font-weight: 600; }
+  input[type="range"] {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.1);
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--gold);
+    cursor: pointer;
+  }
+  .whatif-result {
+    text-align: center;
+    padding: 16px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+    margin-top: 12px;
+  }
+  .whatif-result .val { font-size: 36px; font-weight: 800; }
+  .whatif-result .label { font-size: 11px; color: var(--dim); }
+  
+  /* Footer */
+  .footer { text-align: center; padding: 24px 0; border-top: 1px solid rgba(255,255,255,0.05); }
+  .footer p { font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+  .footer a { color: var(--gold); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+  
+  /* Data Source */
+  .data-source {
+    text-align: center;
+    font-size: 10px;
+    color: var(--dim);
+    margin-bottom: 16px;
+  }
+  
+  /* Loading */
+  .loading { text-align: center; padding: 40px; color: var(--muted); }
+  .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--dim); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Email capture */
+  .email-gate {
+    background: linear-gradient(135deg, rgba(212,168,67,0.1), rgba(212,168,67,0.05));
+    border: 1px solid rgba(212,168,67,0.3);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .email-gate h3 { color: var(--gold); font-size: 16px; margin-bottom: 8px; }
+  .email-gate p { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+  .email-row { display: flex; gap: 8px; max-width: 400px; margin: 0 auto; }
+  .email-row input {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: var(--navy);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+  }
+  .email-row input:focus { border-color: var(--gold); }
+  .email-row button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    background: var(--gold);
+    color: var(--navy);
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .email-row button:hover { background: var(--gold-dim); }
+  .email-success { color: var(--green); font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>🏛️ True Interest Expense Calculator</h1>
+    <p class="subtitle">What percentage of federal tax revenue is consumed by obligations Congress can't practically cut?</p>
+    <p class="framework">Based on the FFTT framework by Luke Gromen • Live FRED data from the Federal Reserve</p>
+  </div>
+
+  <div id="app">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p style="margin-top:12px">Loading live FRED data...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// FRED API - free, no key required for basic access. Using JSON format.
+const FRED_KEY = 'e5790ac1047a3017b1bf765a252694b0';
+const BASE = 'https://api.stlouisfed.org/fred/series/observations';
+
+const SERIES = {
+  grossInterest: 'A091RC1Q027SBEA',
+  interestReceipts: 'B094RC1Q027SBEA',
+  ss: 'W823RC1Q027SBEA',
+  medicare: 'W729RC1Q027SBEA',
+  incomeSecurity: 'W824RC1Q027SBEA',
+  defense: 'FDEFX',
+  revenue: 'FGRECPT',
+  gdp: 'GDP',
+  debt: 'GFDEBTN',
+};
+
+async function fetchSeries(id) {
+  const url = `${BASE}?series_id=${id}&api_key=${FRED_KEY}&file_type=json&sort_order=desc&limit=4`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    const obs = data.observations?.find(o => o.value !== '.');
+    return obs ? { value: parseFloat(obs.value), date: obs.date } : null;
+  } catch(e) {
+    console.error(`Failed to fetch ${id}:`, e);
+    return null;
+  }
+}
+
+function fmt(n, decimals=0) {
+  if (n >= 1e6) return `$${(n/1e6).toFixed(2)}T`;
+  if (n >= 1e3) return `$${(n/1e3).toFixed(0)}B`;
+  return `$${n.toFixed(decimals)}B`;
+}
+
+async function init() {
+  const app = document.getElementById('app');
+  
+  // Fetch all series in parallel
+  const results = {};
+  const entries = Object.entries(SERIES);
+  const fetches = entries.map(async ([key, id]) => {
+    results[key] = await fetchSeries(id);
+  });
+  await Promise.all(fetches);
+
+  // Compute TIE
+  const gi = results.grossInterest?.value || 0;
+  const ir = results.interestReceipts?.value || 0;
+  const netInt = gi - ir;
+  const ss = results.ss?.value || 0;
+  const med = results.medicare?.value || 0;
+  const inc = results.incomeSecurity?.value || 0;
+  const def = results.defense?.value || 0;
+  const rev = results.revenue?.value || 1;
+  const gdp = results.gdp?.value || 1;
+  const debt = results.debt?.value || 0;
+  
+  const tie = netInt + ss + med + inc + def;
+  const tiePct = (tie / rev) * 100;
+  const gap = rev - tie;
+  const dataDate = results.grossInterest?.date || 'Unknown';
+  
+  const statusClass = tiePct > 100 ? 'critical pulse' : tiePct > 80 ? 'warning' : 'ok';
+  const statusMsg = tiePct > 100 
+    ? '⚠️ IRRECOVERABLE — Mandatory obligations exceed ALL federal tax revenue. The deficit exists before a single discretionary dollar is spent.'
+    : tiePct > 80
+    ? '⚠️ WARNING — Approaching fiscal constraint. Limited room for discretionary spending.'
+    : '✅ Sustainable — Revenue covers mandatory obligations with room for discretionary spending.';
+
+  // Revenue bar positioning
+  const barMax = Math.max(tie, rev) * 1.15;
+  const tiePctBar = (tie / barMax) * 100;
+  const revPctBar = (rev / barMax) * 100;
+
+  app.innerHTML = `
+    <!-- Big Number -->
+    <div class="big-number-card">
+      <p class="big-number-label">True Interest Expense as % of Federal Revenue</p>
+      <p class="big-number ${statusClass}">${tiePct.toFixed(1)}%</p>
+      <p class="big-number-context">${statusMsg}</p>
+    </div>
+
+    <!-- 5 Components -->
+    <div class="components">
+      <div class="comp-card interest">
+        <p class="comp-label">Net Interest</p>
+        <p class="comp-value">$${netInt.toFixed(0)}B</p>
+        <p class="comp-pct">${((netInt/rev)*100).toFixed(1)}% of revenue</p>
+      </div>
+      <div class="comp-card ss">
+        <p class="comp-label">Social Security</p>
+        <p class="comp-value">$${ss.toFixed(0)}B</p>
+        <p class="comp-pct">${((ss/rev)*100).toFixed(1)}% of revenue</p>
+      </div>
+      <div class="comp-card medicare">
+        <p class="comp-label">Medicare</p>
+        <p class="comp-value">$${med.toFixed(0)}B</p>
+        <p class="comp-pct">${((med/rev)*100).toFixed(1)}% of revenue</p>
+      </div>
+      <div class="comp-card incsec">
+        <p class="comp-label">Income Security</p>
+        <p class="comp-value">$${inc.toFixed(0)}B</p>
+        <p class="comp-pct">${((inc/rev)*100).toFixed(1)}% of revenue</p>
+      </div>
+      <div class="comp-card defense">
+        <p class="comp-label">Defense</p>
+        <p class="comp-value">$${def.toFixed(0)}B</p>
+        <p class="comp-pct">${((def/rev)*100).toFixed(1)}% of revenue</p>
+      </div>
+    </div>
+
+    <!-- Revenue Bar -->
+    <div class="bar-section">
+      <div class="bar-label-row">
+        <span>Total Mandatory: $${(tie/1000).toFixed(2)}T</span>
+        <span>Gap: <strong style="color:${gap < 0 ? 'var(--red)' : 'var(--green)'}">${gap < 0 ? '-' : '+'}$${Math.abs(gap).toFixed(0)}B</strong> ${gap < 0 ? 'DEFICIT before discretionary' : 'remaining for discretionary'}</span>
+      </div>
+      <div class="bar-container">
+        <div class="bar-fill" style="width:${Math.min(tiePctBar, 100)}%"></div>
+        <div class="bar-revenue-line" style="left:${revPctBar}%">
+          <span class="bar-revenue-label">Revenue: $${(rev/1000).toFixed(2)}T</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Context Cards -->
+    <div class="context-grid">
+      <div class="ctx-card debt">
+        <p class="ctx-title">Federal Debt</p>
+        <p class="ctx-value">${fmt(debt)}</p>
+        <p class="ctx-detail">${((debt/1e6) / (gdp/1e3) * 100).toFixed(0)}% of GDP</p>
+      </div>
+      <div class="ctx-card maturity">
+        <p class="ctx-title">Debt Maturing 2026</p>
+        <p class="ctx-value">~$9-10T</p>
+        <p class="ctx-detail">Must refinance at current rates (PGPF est.)</p>
+      </div>
+      <div class="ctx-card gdp">
+        <p class="ctx-title">TIE as % of GDP</p>
+        <p class="ctx-value">${((tie / gdp) * 100).toFixed(1)}%</p>
+        <p class="ctx-detail">Nominal GDP: $${(gdp/1000).toFixed(1)}T</p>
+      </div>
+      <div class="ctx-card deficit">
+        <p class="ctx-title">Net Interest Only</p>
+        <p class="ctx-value">$${netInt.toFixed(0)}B</p>
+        <p class="ctx-detail">Gross $${gi.toFixed(0)}B − Receipts $${ir.toFixed(0)}B</p>
+      </div>
+    </div>
+
+    <!-- What-If Simulator -->
+    <div class="whatif">
+      <h2>📐 What-If Simulator</h2>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:16px">Adjust interest rates and see how the TIE changes as debt rolls over at new rates.</p>
+      
+      <div class="slider-group">
+        <div class="slider-label">
+          <span>Average interest rate on federal debt</span>
+          <span class="val" id="rate-val">${((gi / (debt/1e3)) * 100).toFixed(1)}%</span>
+        </div>
+        <input type="range" id="rate-slider" min="1" max="8" step="0.1" value="${((gi / (debt/1e3)) * 100).toFixed(1)}">
+      </div>
+      
+      <div class="slider-group">
+        <div class="slider-label">
+          <span>Revenue growth (% change)</span>
+          <span class="val" id="rev-val">0%</span>
+        </div>
+        <input type="range" id="rev-slider" min="-20" max="30" step="1" value="0">
+      </div>
+
+      <div class="whatif-result">
+        <p class="label">Projected TIE as % of Revenue</p>
+        <p class="val" id="whatif-pct" style="color:var(--red)">${tiePct.toFixed(1)}%</p>
+        <p class="label" id="whatif-note"></p>
+      </div>
+    </div>
+
+    <!-- Explanation -->
+    <div class="explainer">
+      <h2>What is the True Interest Expense?</h2>
+      <p>The <strong>True Interest Expense (TIE)</strong> measures the federal government's non-discretionary financial obligations as a percentage of tax revenue. It was developed by Luke Gromen of <strong>FFTT LLC</strong> to illustrate the structural fiscal position of the United States.</p>
+      <p>The five components are obligations that Congress cannot practically cut:</p>
+      <ul>
+        <li><strong>Net Interest on Debt</strong> — Contractual obligation. Default is not an option for the reserve currency issuer.</li>
+        <li><strong>Social Security</strong> — 70+ million beneficiaries. Politically untouchable. Trust fund already drawing down.</li>
+        <li><strong>Medicare</strong> — 65+ million beneficiaries. Costs rising with demographics and healthcare inflation.</li>
+        <li><strong>Income Security</strong> — Medicaid, SSI, SNAP, and related programs. ~85 million Medicaid enrollees alone.</li>
+        <li><strong>Defense</strong> — Geopolitical commitments make meaningful cuts unlikely regardless of party.</li>
+      </ul>
+      <p>When these five items exceed 100% of revenue, the federal government is in deficit <strong>before spending a single discretionary dollar</strong> — no national parks, no NASA, no federal courts, no infrastructure. The only options are: raise taxes, cut mandatory spending (politically impossible), or print/borrow the difference.</p>
+      <p><strong>The investment implication:</strong> When TIE > 100%, the government MUST monetize or debase. This is structurally bullish for hard assets (gold, commodities, real assets) and bearish for long-duration nominal bonds. It's not a prediction — it's arithmetic.</p>
+    </div>
+
+    <!-- Email Capture -->
+    <div class="email-gate" id="email-section">
+      <h3>📊 Get Weekly TIE Updates</h3>
+      <p>Updated data, regime signals, and what it means for your portfolio — delivered every Monday.</p>
+      <div class="email-row">
+        <input type="email" id="email-input" placeholder="you@email.com">
+        <button onclick="captureEmail()">Subscribe</button>
+      </div>
+      <p class="email-success" id="email-success" style="display:none">✅ You're in. First update arrives Monday.</p>
+    </div>
+
+    <!-- Data Source -->
+    <div class="data-source">
+      Data: Federal Reserve Bank of St. Louis (FRED) • BEA NIPA Tables • Updated: ${dataDate}<br>
+      Series: A091RC1Q027SBEA, B094RC1Q027SBEA, W823RC1Q027SBEA, W729RC1Q027SBEA, W824RC1Q027SBEA, FDEFX, FGRECPT, GDP, GFDEBTN
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>Built by <a href="https://x.com/zmGandalf" target="_blank">@zmGandalf</a></p>
+      <p>This tool is for educational purposes only. Not financial advice. Data sourced from public federal databases.</p>
+    </div>
+  `;
+
+  // Wire up sliders
+  const rateSlider = document.getElementById('rate-slider');
+  const revSlider = document.getElementById('rev-slider');
+  const rateVal = document.getElementById('rate-val');
+  const revVal = document.getElementById('rev-val');
+  const whatifPct = document.getElementById('whatif-pct');
+  const whatifNote = document.getElementById('whatif-note');
+
+  const currentRate = (gi / (debt/1e3)) * 100;
+  
+  function updateWhatIf() {
+    const newRate = parseFloat(rateSlider.value);
+    const revGrowth = parseFloat(revSlider.value);
+    
+    rateVal.textContent = newRate.toFixed(1) + '%';
+    revVal.textContent = (revGrowth >= 0 ? '+' : '') + revGrowth + '%';
+    
+    const newGrossInt = (debt / 1e3) * (newRate / 100);
+    const newNetInt = newGrossInt - ir;
+    const newRev = rev * (1 + revGrowth / 100);
+    const newTIE = newNetInt + ss + med + inc + def;
+    const newPct = (newTIE / newRev) * 100;
+    
+    whatifPct.textContent = newPct.toFixed(1) + '%';
+    whatifPct.style.color = newPct > 100 ? 'var(--red)' : newPct > 80 ? 'var(--orange)' : 'var(--green)';
+    
+    const delta = newPct - tiePct;
+    whatifNote.textContent = delta > 0 
+      ? `↑ ${delta.toFixed(1)}pp worse than current` 
+      : delta < 0 
+      ? `↓ ${Math.abs(delta).toFixed(1)}pp better than current`
+      : 'Same as current';
+  }
+
+  rateSlider?.addEventListener('input', updateWhatIf);
+  revSlider?.addEventListener('input', updateWhatIf);
+}
+
+function captureEmail() {
+  const input = document.getElementById('email-input');
+  const email = input.value.trim();
+  if (!email || !email.includes('@')) { input.style.borderColor = 'var(--red)'; return; }
+  
+  // Store locally for now — can wire to Mailchimp/ConvertKit/Supabase later
+  const emails = JSON.parse(localStorage.getItem('tie_emails') || '[]');
+  emails.push({ email, timestamp: new Date().toISOString() });
+  localStorage.setItem('tie_emails', JSON.stringify(emails));
+  
+  document.getElementById('email-success').style.display = 'block';
+  input.value = '';
+  input.style.borderColor = 'var(--green)';
+}
+
+init();
+</script>
+</body>
+</html>
